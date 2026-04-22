@@ -1,0 +1,11 @@
+- 技术栈：Vue 3
+- 路由：使用文件式路由（unplugin-vue-router），页面放在 src/pages。
+- 请求：统一使用 src/utils/http.ts，不要直接在页面里写 axios 请求。
+- 时间处理：统一使用 dayjs。
+- 表单校验：统一使用 zod（可配合 vee-validate）。
+- 数字格式化：统一使用 numeral。
+- 状态缓存与跨页数据：统一使用 pinia store。
+- 组件库：项目已安装 Vant / PrimeVue / Element Plus；在同一页面尽量保持一种视觉体系，非必要不要混搭。
+- 页面使用字段不用映射，直接用接口返回的字段名。
+- 如有代码注释,请使用中文。
+- 功能设计注重 UX 体验, 并在完成代码后提供可能的UX体验优化方案
