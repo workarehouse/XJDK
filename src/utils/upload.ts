@@ -4,9 +4,11 @@ export const uploadImageToServer = async (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
 
-    const uploadRes = await http.post('/sys/common/upload', formData, {
+    const uploadRes = await http.post('/jeecgboot/sys/common/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
     })
 
-    return String(uploadRes.data.result || '')
+    console.log('uploadRes', uploadRes)
+
+    return uploadRes
 }

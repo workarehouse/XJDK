@@ -72,26 +72,41 @@
                     <div>
                         <p class="text-base font-bold text-gray-900">巡检打卡
                         </p>
-                        <p class="text-xs text-gray-400 mt-0.5">打卡时间</p>
+                        <p class="text-xs text-gray-400 mt-0.5">{{ dayjs(selectedDate).format('YYYY-MM-DD') }}</p>
                     </div>
                 </div>
 
                 <!-- 时间线 -->
-                <div class="flex flex-col gap-0">
-                    <div v-for="value in 10" class="flex items-start gap-4">
-                        <span class="w-12 text-right text-base font-semibold tabular-nums"
-                            :class="checkInRecord ? 'text-gray-900' : 'text-gray-300'">
-                            {{ checkInRecord?.time ?? checkInExpected }}
-                        </span>
-                        <div class="flex-1 pb-4">
-                            <p class="text-sm font-medium" :class="checkInRecord ? 'text-gray-800' : 'text-gray-300'">
-                                区域
-                            </p>
-                            <p v-if="checkInRecord" class="text-xs text text-gray-400 mt-0.5">
-                                现场拍照
-                            </p>
+                <div v-if="punchRecords.length" class="flex flex-col gap-0">
+                    <div v-for="(record, index) in punchRecords" :key="`${record.clktim || ''}-${index}`"
+                        class="flex items-start gap-4">
+                        <div class="relative w-14 shrink-0 pt-0.5">
+                            <span class="block text-left text-base font-semibold tabular-nums text-gray-900">
+                                {{ dayjs(record.clktim).format('HH:mm') }}
+                            </span>
+                            <div v-if="index !== punchRecords.length - 1"
+                                class="absolute left-1/2 top-7 bottom-0 w-px -translate-x-1/2 bg-gray-200"></div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="pb-2">
+                                <p class="text-sm font-medium text-gray-800">
+                                    {{ record.area || '未设置区域' }}
+                                </p>
+                                <p v-if="record.addr" class="text-xs text-gray-500 mt-0.5 break-all">
+                                    {{ record.addr }}
+                                </p>
+                                <p class="text-xs text-gray-400 mt-0.5">
+                                    {{ record.clksty === '2' ? '照片上传' : '现场拍照' }}
+                                </p>
+                            </div>
+                            <div v-if="index !== punchRecords.length - 1" class="py-2">
+                                <div class="h-px bg-gray-50"></div>
+                            </div>
                         </div>
                     </div>
+                </div>
+                <div v-else class="py-6 text-center text-sm text-gray-400">
+                    当日暂无打卡记录
                 </div>
             </div>
         </div>
@@ -115,6 +130,7 @@
 import dayjs from 'dayjs'
 import { useSwipe } from '@vueuse/core'
 import { useRouter } from 'vue-router'
+import http from '@/utils/http'
 import {
     ChevronLeftIcon,
     ChevronRightIcon,
@@ -180,6 +196,31 @@ const onContentScroll = () => {
     lastScrollTop = st
 }
 
+type PunchRecord = {
+    addr?: string
+    area?: string
+    clktim?: string
+    clksty?: string
+}
+
+const punchRecords = ref<PunchRecord[]>([])
+
+const fetchPunchRecordsByDate = async (date: string) => {
+    try {
+        const response = await http.post('/xmsapi/xmsale/qw/findmyclksbydat', { date })
+        const records = Array.isArray(response?.data?.result) ? response.data.result : []
+        punchRecords.value = records
+            .filter((item: PunchRecord) => item?.clktim)
+            .sort((a: PunchRecord, b: PunchRecord) => dayjs(a.clktim).valueOf() - dayjs(b.clktim).valueOf())
+    } catch {
+        punchRecords.value = []
+    }
+}
+
+watch(selectedDate, (date) => {
+    void fetchPunchRecordsByDate(date)
+}, { immediate: true })
+
 // 月历所有格子（含前后补位）
 const monthDays = computed(() => {
     const first = currentMonth.value.startOf('month')
@@ -212,36 +253,6 @@ const monthDays = computed(() => {
 
 const isToday = (date: string) => date === today.format('YYYY-MM-DD')
 const isSelected = (date: string) => date === selectedDate.value
-
-// ——— 打卡规则（模拟） ———
-const punchRule = '猪场 A 区现场打卡'
-
-// ——— 当日打卡数据（模拟） ———
-const checkInExpected = '08:30'
-const checkOutExpected = '17:30'
-
-// 模拟：今天有上班打卡，未下班
-const checkInRecord = computed(() => {
-    if (selectedDate.value === today.format('YYYY-MM-DD')) {
-        return { time: '08:30' }
-    }
-    // 工作日模拟有记录
-    const d = dayjs(selectedDate.value)
-    if (!d.isAfter(today, 'day') && d.day() !== 0 && d.day() !== 6) {
-        return { time: '08:' + String(25 + (d.date() % 10)).padStart(2, '0') }
-    }
-    return null
-})
-
-const checkOutRecord = computed(() => {
-    const d = dayjs(selectedDate.value)
-    // 今天未下班，其他工作日有记录
-    if (selectedDate.value === today.format('YYYY-MM-DD')) return null
-    if (!d.isAfter(today, 'day') && d.day() !== 0 && d.day() !== 6) {
-        return { time: '17:' + String(28 + (d.date() % 5)).padStart(2, '0') }
-    }
-    return null
-})
 
 // ——— 底部导航 ———
 const bottomNavs = [

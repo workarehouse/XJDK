@@ -22,7 +22,15 @@ instance.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 instance.interceptors.response.use(
     (response: AxiosResponse) => {
         const { code, msg } = response.data
-        if (code === 200) {
+        const requestUrl = String(response.config?.url || '')
+        const isUploadApi = requestUrl.includes('/sys/common/upload')
+
+        if (code === 200 || code === 0) {
+            // 如果是上传接口, 返回 message
+            if (isUploadApi) {
+                return response.data?.message
+            }
+
             return response
         } else {
             handleErrorCode(code, msg)

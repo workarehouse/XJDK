@@ -17,7 +17,7 @@ async function sha1(str: string): Promise<string> {
 
 /**
  * 根据 ticket 和当前页面 url 生成 JSSDK 签名
- * @param ticket  jsapi_ticket（企业或应用）
+ * @param ticket  企业 jsapi_ticket
  * @param url     当前页面 URL，不含 # 及后面部分
  */
 async function generateSignature(ticket: string, url: string) {
@@ -36,20 +36,16 @@ async function generateSignature(ticket: string, url: string) {
  */
 export function initWecomSDK(jsApiList: string[] = []) {
     const corpId = import.meta.env.VITE_WECOM_CORP_ID as string
-    const agentId = Number(import.meta.env.VITE_WECOM_AGENT_ID)
-    const ticket = store.get('ticket') as string
+    const corpTicket = String(store.get('ticket') || '')
 
-    ww.register({
+    const registerOptions: ww.RegisterOptions = {
         corpId,
-        agentId,
         jsApiList,
         // 企业签名：使用企业 jsapi_ticket
         async getConfigSignature(url: string) {
-            return await generateSignature(ticket, url)
+            return await generateSignature(corpTicket, url)
         },
-        // 应用签名：同一 ticket（后端下发的即为应用 ticket）
-        async getAgentConfigSignature(url: string) {
-            return await generateSignature(ticket, url)
-        },
-    })
+    }
+
+    ww.register(registerOptions)
 }

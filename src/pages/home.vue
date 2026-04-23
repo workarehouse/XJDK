@@ -107,29 +107,43 @@
                             <!-- conic-gradient 跑光圈（打卡中） -->
                             <div v-if="isPunching" class="ring-spin absolute rounded-full"></div>
                             <button @click="handlePunch" :disabled="isPunching"
-                                class="relative w-36 h-36 rounded-full bg-white flex flex-col items-center justify-center cursor-pointer transition-transform duration-150 disabled:cursor-not-allowed"
-                                :style="isPunching ? {} : ringStyle">
-                                <span class="text-gray-900  text-base font-medium leading-none">拍照打卡</span>
-                                <span class="text-gray-900 text-lg font-bold leading-tight tabular-nums mt-2">
-                                    {{ currentHour }}<span class="time-colon">:</span>{{ currentMinute }}
-                                </span>
+                                class="relative w-36 h-36 rounded-full bg-white flex flex-col items-center justify-center cursor-pointer transition-all duration-300 disabled:cursor-not-allowed overflow-hidden"
+                                :class="isPunchSuccess ? 'punch-success-btn' : ''" :style="isPunching ? {} : ringStyle">
+                                <div v-if="isPunchSuccess" class="success-glow absolute inset-0 pointer-events-none">
+                                </div>
+                                <Transition name="punch-success" mode="out-in">
+                                    <div v-if="isPunchSuccess" key="success"
+                                        class="flex flex-col items-center justify-center">
+                                        <div
+                                            class="w-12 h-12 rounded-full bg-[#07c1601a] border border-[#07c16055] flex items-center justify-center">
+                                            <CheckIcon class="w-8 h-8 text-[#07c160]" :stroke-width="3" />
+                                        </div>
+                                        <span
+                                            class="text-[#07c160] text-base font-semibold mt-2 tracking-[0.02em]">打卡成功</span>
+                                    </div>
+                                    <div v-else key="default" class="flex flex-col items-center justify-center">
+                                        <span class="text-gray-900 text-base font-medium leading-none">拍照打卡</span>
+                                        <span class="text-gray-900 text-lg font-bold leading-tight tabular-nums mt-2">
+                                            {{ currentHour }}<span class="time-colon">:</span>{{ currentMinute }}
+                                        </span>
+                                    </div>
+                                </Transition>
                             </button>
                         </div>
 
                         <!-- 打卡记录列表 -->
-                        <div v-if="punchRecords.length" class="mt-5 w-full px-8 flex flex-col gap-2"
-                            :class="showAllPunchRecords ? 'max-h-28 overflow-y-auto pr-1 overscroll-contain' : ''">
+                        <div v-if="punchRecords.length" class="mt-5 w-full px-8 flex flex-col gap-2">
                             <div v-for="(r, i) in visiblePunchRecords" :key="i"
                                 class="flex items-center justify-between text-sm">
                                 <span class="text-gray-400">{{ r.area || '未设置区域' }}</span>
                                 <div class="flex items-center gap-2">
-                                    <span class="text-gray-700 font-medium tabular-nums">{{ r.time }}</span>
+                                    <span class="text-gray-700 font-medium tabular-nums">{{
+                                        dayjs(r.clktim).format('HH:mm') }}</span>
                                 </div>
                             </div>
-                            <button v-if="punchRecords.length > 2" type="button"
-                                @click="showAllPunchRecords = !showAllPunchRecords"
+                            <button v-if="punchRecords.length > 2" type="button" @click="router.push('/stat')"
                                 class="text-xs text-gray-400 text-center mt-1 cursor-pointer">
-                                {{ showAllPunchRecords ? '收起' : '查看更多' }}
+                                查看更多
                             </button>
                         </div>
                     </div>
@@ -203,6 +217,19 @@
 
                         <!-- 上传说明灰字 -->
                         <p class="mt-2 text-xs text-gray-400 text-center">请上传现场照片作为打卡凭证，需清晰展示当前工作环境</p>
+
+                        <!-- 识别结果 -->
+                        <div v-if="isUploadPreparing || uploadRecognizeContent"
+                            class="mt-3 rounded-lg border border-[#e8eef8] bg-[#f8fbff] px-3 py-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-xs font-medium text-[#1677ff]">识别内容</span>
+                                <span v-if="isUploadPreparing" class="text-[10px] text-gray-400">处理中...</span>
+                            </div>
+                            <p v-if="uploadRecognizeContent"
+                                class="mt-1 text-xs leading-5 text-gray-600 break-words whitespace-pre-wrap">
+                                {{ uploadRecognizeContent }}
+                            </p>
+                        </div>
                     </div>
 
                     <!-- 隐藏 input -->
@@ -210,12 +237,16 @@
 
                     <!-- 提交按钮 -->
                     <div class="px-5 pb-6 shrink-0">
-                        <button @click="handleUploadPunch" :disabled="!uploadPreview || isUploadPunching"
+                        <button @click="handleUploadPunch"
+                            :disabled="!uploadPreview || isUploadPunching || isUploadPreparing || !isRecognizedTimeValid || isUploadSuccess"
                             class="w-full py-3 rounded-md text-white font-semibold text-base transition-all duration-200 cursor-pointer active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
-                            :class="uploadPreview ? 'bg-gradient-to-r from-[#1677ff] to-[#0f5fd1] shadow-[#1677ff33]' : 'bg-gray-300'">
-                            <span v-if="isUploadPunching"
+                            :class="isUploadSuccess
+                                ? 'bg-[#07c160] shadow-[#07c16033]'
+                                : (uploadPreview ? 'bg-gradient-to-r from-[#1677ff] to-[#0f5fd1] shadow-[#1677ff33]' : 'bg-gray-300')">
+                            <span v-if="isUploadPunching || isUploadPreparing"
                                 class="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
-                            <span>上传</span>
+                            <CheckIcon v-else-if="isUploadSuccess" class="w-4 h-4" :stroke-width="3" />
+                            <span>{{ isUploadSuccess ? '上传成功' : (isUploadPreparing ? '处理中' : '上传') }}</span>
                         </button>
                     </div>
                 </div>
@@ -252,6 +283,7 @@ import {
 import { ElMessage } from 'element-plus'
 import http from '@/utils/http'
 import { uploadImageToServer } from '@/utils/upload'
+import * as ww from '@wecom/jssdk'
 
 // 组件命后用于 KeepAlive include 识别
 defineOptions({ name: 'PunchPage' })
@@ -302,68 +334,39 @@ const currentHour = computed(() => now.value.format('HH'))
 const currentMinute = computed(() => now.value.format('mm'))
 
 let timer: ReturnType<typeof setInterval>
+let punchSuccessTimer: ReturnType<typeof setTimeout> | null = null
+let uploadSuccessTimer: ReturnType<typeof setTimeout> | null = null
 
 // ——— 位置 ———
-const inRange = ref(true)
 const currentLat = ref('')   // 当前纬度
 const currentLng = ref('')   // 当前经度
 
-// 获取当前地理位置：优先企业微信，失败后回退浏览器定位
+// 获取当前地理位置：仅使用企业微信定位
 const fetchGeolocation = async () => {
     const setCoords = (latitude: number | string, longitude: number | string) => {
         currentLat.value = String(latitude)
         currentLng.value = String(longitude)
+        console.log('[定位] 已更新坐标', {
+            latitude: currentLat.value,
+            longitude: currentLng.value,
+        })
     }
 
     try {
-        const ww = (window as any).ww
         if (ww?.getLocation) {
-            const res = await ww.getLocation({ type: 'wgs84' })
+            console.log('[定位] 开始调用企业微信 ww.getLocation')
+            const res = await ww.getLocation({ type: ww.LocationType.wgs84 })
+            console.log('[定位] ww.getLocation 返回结果', res)
+
             if (res?.latitude && res?.longitude) {
                 setCoords(res.latitude, res.longitude)
+                console.log('[定位] ww.getLocation 获取成功')
                 return
             }
         }
     } catch (err) {
         console.warn('企业微信 ww.getLocation 失败:', err)
     }
-
-    try {
-        const wxSdk = (window as any).wx
-        if (wxSdk?.getLocation) {
-            await new Promise<void>((resolve, reject) => {
-                wxSdk.getLocation({
-                    type: 'wgs84',
-                    success: (res: any) => {
-                        if (res?.latitude && res?.longitude) {
-                            setCoords(res.latitude, res.longitude)
-                        }
-                        resolve()
-                    },
-                    fail: (err: any) => reject(err),
-                    cancel: () => reject(new Error('用户取消定位')),
-                })
-            })
-            if (currentLat.value && currentLng.value) return
-        }
-    } catch (err) {
-        console.warn('企业微信 wx.getLocation 失败:', err)
-    }
-
-    if (!navigator.geolocation) return
-    await new Promise<void>((resolve) => {
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                setCoords(pos.coords.latitude, pos.coords.longitude)
-                resolve()
-            },
-            (err) => {
-                console.warn('浏览器定位失败:', err.message)
-                resolve()
-            },
-            { enableHighAccuracy: true, timeout: 8000 }
-        )
-    })
 }
 
 // ——— 区域选择 ———
@@ -377,7 +380,7 @@ const uploadAreaDropdownRef = ref<HTMLElement | null>(null)
 // 获取区域列表
 const fetchAreaList = async () => {
     try {
-        const response = await http.post('/findmyclksbyarea')
+        const response = await http.post('/xmsapi/xmsale/qw/findmyclksbyarea')
         if (response.data.code === 200 && response.data.result) {
             // 将接口返回的数据转换为下拉菜单格式
             areaOptions.value = response.data.result.map((item: any) => ({
@@ -394,11 +397,21 @@ onMounted(() => {
     timer = setInterval(() => { now.value = dayjs() }, 1000)
     document.addEventListener('click', handleOutsideClick)
     fetchAreaList()
+    void fetchTodayPunchRecords()
     void fetchGeolocation()
 })
+
 onUnmounted(() => {
     clearInterval(timer)
     document.removeEventListener('click', handleOutsideClick)
+    if (punchSuccessTimer) {
+        clearTimeout(punchSuccessTimer)
+        punchSuccessTimer = null
+    }
+    if (uploadSuccessTimer) {
+        clearTimeout(uploadSuccessTimer)
+        uploadSuccessTimer = null
+    }
 })
 
 const handleOutsideClick = (e: MouseEvent) => {
@@ -410,12 +423,36 @@ const handleOutsideClick = (e: MouseEvent) => {
     }
 }
 
-// ——— 现场拍照打卡状态 ———
-const punchRecords = ref<{ time: string; area: string }[]>([])  // 每次打卡记录
-const isPunching = ref(false)
-const showAllPunchRecords = ref(false)
-const visiblePunchRecords = computed(() => showAllPunchRecords.value ? punchRecords.value : punchRecords.value.slice(0, 2))
+const triggerPunchSuccessState = () => {
+    isPunchSuccess.value = true
+    if (punchSuccessTimer) {
+        clearTimeout(punchSuccessTimer)
+    }
+    punchSuccessTimer = setTimeout(() => {
+        isPunchSuccess.value = false
+        punchSuccessTimer = null
+    }, 3000)
+}
 
+// ——— 现场拍照打卡状态 ———
+const punchRecords = ref<{ area?: string; clktim?: string }[]>([])  // 当天打卡记录
+const isPunching = ref(false)
+const isPunchSuccess = ref(false)
+const visiblePunchRecords = computed(() => punchRecords.value.slice(0, 2))
+
+const fetchTodayPunchRecords = async () => {
+    try {
+        const response = await http.post('/xmsapi/xmsale/qw/findmyclksbydat', {
+            date: dayjs().format('YYYY-MM-DD'),
+        })
+        const records = Array.isArray(response?.data?.result) ? response.data.result : []
+        punchRecords.value = records
+            .filter((item: any) => item?.clktim)
+            .sort((a: any, b: any) => dayjs(b.clktim).valueOf() - dayjs(a.clktim).valueOf())
+    } catch {
+        punchRecords.value = []
+    }
+}
 
 const ringStyle = {
     border: '6px solid #f5a623',
@@ -424,7 +461,6 @@ const ringStyle = {
 
 // 统一读取企业微信本地图片 base64（iOS WKWebView）
 const getLocalImgDataByWecom = async (localId: string) => {
-    const ww = (window as any).ww
     if (ww?.getLocalImgData) {
         const res = await ww.getLocalImgData({ localId })
         return String(res?.localData || '')
@@ -479,15 +515,54 @@ const handlePunch = () => {
         return
     }
 
-    const ww = (window as any).ww
     isPunching.value = true
 
-    console.log('开始拍照打卡，调用企业微信 chooseImage 接口', ww.chooseImage)
+    // 测试/开发环境：使用浏览器选择图片，不走企业微信拍照
+    const isTestEnv = import.meta.env.MODE === 'development'
+    if (isTestEnv) {
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = 'image/*'
+        input.capture = 'environment'
+        input.onchange = () => {
+            const file = input.files?.[0]
+            if (!file) {
+                ElMessage({ message: '请完成拍照后再打卡', type: 'warning', duration: 2000 })
+                isPunching.value = false
+                return
+            }
+
+            uploadImageToServer(file)
+                .then((picurl) => http.post('/xmsapi/xmsale/qw/savefarmclock', {
+                    area: selectedArea.value,
+                    clksty: '1',
+                    clktim: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+                    lat: currentLat.value,
+                    lng: currentLng.value,
+                    picurl,
+                }))
+                .then(() => {
+                    triggerPunchSuccessState()
+                    void fetchTodayPunchRecords()
+                    selectedArea.value = ''
+                    areaOpen.value = false
+                    uploadAreaOpen.value = false
+                })
+                .catch(() => {
+                    ElMessage({ message: '打卡失败，请重试', type: 'error', duration: 2000 })
+                })
+                .finally(() => {
+                    isPunching.value = false
+                })
+        }
+        input.click()
+        return
+    }
 
     ww.chooseImage({
         count: 1,
-        sizeType: ['compressed'],
-        sourceType: ['camera'],
+        sizeType: [ww.SizeType.compressed],
+        sourceType: [ww.SourceType.camera],
         success: (result: any) => {
             console.log('chooseImage result:', result)
             const localId = Array.isArray(result?.localIds) && result.localIds.length > 0
@@ -508,7 +583,7 @@ const handlePunch = () => {
                     // 打卡前刷新一次定位
                     return fetchGeolocation().then(() => picurl)
                 })
-                .then((picurl) => http.post('/savefarmclock', {
+                .then((picurl) => http.post('/xmsapi/xmsale/qw/savefarmclock', {
                     area: selectedArea.value,
                     clksty: '1',
                     clktim: dayjs().format('YYYY-MM-DD HH:mm:ss'),
@@ -517,8 +592,8 @@ const handlePunch = () => {
                     picurl,
                 }))
                 .then(() => {
-                    const areaLabel = areaOptions.value.find((a: any) => a.value === selectedArea.value)?.label ?? ''
-                    punchRecords.value.push({ time: dayjs().format('HH:mm:ss'), area: areaLabel })
+                    triggerPunchSuccessState()
+                    void fetchTodayPunchRecords()
                     selectedArea.value = ''
                     areaOpen.value = false
                     uploadAreaOpen.value = false
@@ -542,9 +617,136 @@ const uploadPreview = ref('')
 const uploadFile = ref<File | null>(null)   // 保存原始文件，用于上传
 const isUploadPunching = ref(false)
 const uploadPunchDone = ref(false)
+const isUploadPreparing = ref(false)
+const uploadPicurl = ref('')
+const uploadRecognizeContent = ref('')
+const uploadRecognizeInfo = ref<{ date?: string; location?: string; type?: string } | null>(null)
+const isUploadSuccess = ref(false)
+const isRecognizedTimeValid = computed(() => {
+    const recognizedDate = uploadRecognizeInfo.value?.date
+    return Boolean(recognizedDate && dayjs(recognizedDate).isValid())
+})
+
+const resetUploadForm = () => {
+    uploadPreview.value = ''
+    uploadFile.value = null
+    uploadPicurl.value = ''
+    uploadRecognizeContent.value = ''
+    uploadRecognizeInfo.value = null
+    uploadPunchDone.value = false
+    if (fileInput.value) fileInput.value.value = ''
+    selectedArea.value = ''
+    areaOpen.value = false
+    uploadAreaOpen.value = false
+}
+
+const triggerUploadSuccessState = () => {
+    isUploadSuccess.value = true
+    if (uploadSuccessTimer) {
+        clearTimeout(uploadSuccessTimer)
+    }
+    uploadSuccessTimer = setTimeout(() => {
+        isUploadSuccess.value = false
+        resetUploadForm()
+        uploadSuccessTimer = null
+    }, 1500)
+}
 
 const triggerUpload = () => {
     fileInput.value?.click()
+}
+
+const extractRecognizeInfo = (payload: any): { date?: string; location?: string; type?: string } | null => {
+    if (!payload) return null
+
+    const arrayData = Array.isArray(payload?.data)
+        ? payload.data
+        : (Array.isArray(payload) ? payload : null)
+
+    if (!arrayData || arrayData.length === 0) {
+        return null
+    }
+
+    const lastItem = arrayData[arrayData.length - 1]
+    if (!lastItem || typeof lastItem !== 'object') {
+        return null
+    }
+
+    return {
+        date: lastItem.date ? String(lastItem.date) : undefined,
+        location: lastItem.location ? String(lastItem.location) : undefined,
+        type: lastItem.type ? String(lastItem.type) : undefined,
+    }
+}
+
+const extractRecognizeContent = (payload: any): string => {
+    if (!payload) return ''
+    if (typeof payload === 'string') return payload
+
+    // 接口返回 data 为数组时，默认只取最后一条
+    const arrayData = Array.isArray(payload?.data)
+        ? payload.data
+        : (Array.isArray(payload) ? payload : null)
+    if (arrayData && arrayData.length > 0) {
+        const lastItem = arrayData[arrayData.length - 1]
+        if (typeof lastItem === 'string') return lastItem
+        if (lastItem && typeof lastItem === 'object') {
+            const parts = [lastItem.date, lastItem.location, lastItem.type].filter(Boolean)
+            if (parts.length) return parts.join('\n')
+            return JSON.stringify(lastItem)
+        }
+        return String(lastItem)
+    }
+
+    const result = payload.result ?? payload.data?.result ?? payload.data ?? payload.message ?? payload.content
+    if (typeof result === 'string') return result
+    if (Array.isArray(result) && result.length > 0) {
+        const lastItem = result[result.length - 1]
+        if (typeof lastItem === 'string') return lastItem
+        if (lastItem && typeof lastItem === 'object') {
+            const parts = [lastItem.date, lastItem.location, lastItem.type].filter(Boolean)
+            if (parts.length) return parts.join('\n')
+            return JSON.stringify(lastItem)
+        }
+        return String(lastItem)
+    }
+    if (result == null) return ''
+    return String(result)
+}
+
+const callImageRecognize = async (imageUrl: string) => {
+    const response = await http.get('https://devenv.luoniushan.com/lxmpapi/lxmp/chat', {
+        params: {
+            apikey: 'dQ4ZldbmhNlmVqlBq9ivoyi34hf5sgT2IOEZMw7Igxql8iTCsGAsyk8ZoI8lUO3riYi80ckRvLZ4lQDid',
+            imageUrl,
+        },
+    })
+    const payload = response?.data ?? response
+    uploadRecognizeInfo.value = extractRecognizeInfo(payload)
+    uploadRecognizeContent.value = extractRecognizeContent(payload) || '未识别到有效内容'
+}
+
+const prepareUploadAndRecognize = async (file: File) => {
+    isUploadPreparing.value = true
+    uploadPicurl.value = ''
+    uploadRecognizeContent.value = ''
+    uploadRecognizeInfo.value = null
+    try {
+        const picurl = await uploadImageToServer(file)
+        const imageUrl = String(picurl || '')
+        if (!imageUrl) {
+            throw new Error('图片上传失败')
+        }
+        uploadPicurl.value = imageUrl
+        await callImageRecognize(imageUrl)
+    } catch {
+        uploadPicurl.value = ''
+        uploadRecognizeContent.value = ''
+        uploadRecognizeInfo.value = null
+        ElMessage({ message: '图片处理失败，请重试', type: 'error', duration: 2000 })
+    } finally {
+        isUploadPreparing.value = false
+    }
 }
 
 const onFileChange = (e: Event) => {
@@ -553,7 +755,9 @@ const onFileChange = (e: Event) => {
     uploadFile.value = file
     uploadPreview.value = URL.createObjectURL(file)
     uploadPunchDone.value = false
+    void prepareUploadAndRecognize(file)
 }
+
 
 const handleUploadPunch = async () => {
     if (!uploadPreview.value || isUploadPunching.value || uploadPunchDone.value) return
@@ -565,26 +769,34 @@ const handleUploadPunch = async () => {
         ElMessage({ message: '请先选择照片', type: 'warning', duration: 1800 })
         return
     }
+    if (!isRecognizedTimeValid.value) {
+        ElMessage({ message: '识别时间为空或格式无效，不能上传', type: 'warning', duration: 2200 })
+        return
+    }
     isUploadPunching.value = true
     try {
-        // 第一步：上传图片，获取图片 URL
-        const picurl = await uploadImageToServer(uploadFile.value)
+        // 第一步：优先复用选图后已上传的图片地址
+        let picurl = uploadPicurl.value
+        if (!picurl) {
+            picurl = String(await uploadImageToServer(uploadFile.value))
+            uploadPicurl.value = picurl
+            await callImageRecognize(picurl)
+        }
+
+        const recognizedDate = uploadRecognizeInfo.value?.date as string
+        const clktim = dayjs(recognizedDate).format('YYYY-MM-DD HH:mm:ss')
+        const addr = uploadRecognizeInfo.value?.location || ''
 
         // 第二步：调用打卡接口
-        await http.post('/savefarmclock', {
+        await http.post('/xmsapi/xmsale/qw/savefarmclock', {
             area: selectedArea.value,
             clksty: '2',
-            clktim: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+            clktim,
+            addr,
             picurl,
         })
-        uploadPunchDone.value = true
-        uploadPreview.value = ''
-        uploadFile.value = null
-        if (fileInput.value) fileInput.value.value = ''
-        selectedArea.value = ''
-        areaOpen.value = false
-        uploadAreaOpen.value = false
-        ElMessage({ message: '照片打卡成功', type: 'success', duration: 2000 })
+        void fetchTodayPunchRecords()
+        triggerUploadSuccessState()
     } catch {
         ElMessage({ message: '打卡失败，请重试', type: 'error', duration: 2000 })
     } finally {
@@ -601,6 +813,39 @@ button {
 .time-colon {
     display: inline-block;
     animation: colon-blink 1s steps(1, end) infinite;
+}
+
+.punch-success-btn {
+    border: 1px solid #22c55e66;
+    box-shadow: 0 0 0 4px #22c55e14, 0 10px 24px -14px #22c55e99;
+}
+
+.success-glow {
+    background: radial-gradient(circle at 50% 35%, #22c55e1f 0%, transparent 62%);
+    animation: success-glow-fade 0.6s ease-out;
+}
+
+.punch-success-enter-active,
+.punch-success-leave-active {
+    transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.punch-success-enter-from,
+.punch-success-leave-to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+}
+
+@keyframes success-glow-fade {
+    0% {
+        opacity: 0;
+        transform: scale(0.92);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 /* conic-gradient 跑光圈 */
