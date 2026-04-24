@@ -216,14 +216,21 @@
                         </div>
 
                         <!-- 上传说明灰字 -->
-                        <p class="mt-2 text-xs text-gray-400 text-center">请上传现场照片作为打卡凭证，需清晰展示当前工作环境</p>
+                        <p class="mt-2 text-xs text-gray-400 text-center">请上传现场照片作为打卡凭证</p>
 
                         <!-- 识别结果 -->
                         <div v-if="isUploadPreparing || uploadRecognizeContent"
                             class="mt-3 rounded-lg border border-[#e8eef8] bg-[#f8fbff] px-3 py-2">
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-xs font-medium text-[#1677ff]">识别内容</span>
-                                <span v-if="isUploadPreparing" class="text-[10px] text-gray-400">处理中...</span>
+                                <div class="flex items-center gap-2">
+                                    <button v-if="uploadPreview" type="button" @click="handleRetryRecognize"
+                                        :disabled="isUploadPreparing"
+                                        class="h-6 rounded-md border border-[#c9ddff] bg-white px-2 text-[10px] text-[#1677ff] transition-colors duration-150 active:bg-[#eef5ff] disabled:cursor-not-allowed disabled:opacity-50">
+                                        重新识别
+                                    </button>
+                                    <span v-if="isUploadPreparing" class="text-[10px] text-gray-400">处理中...</span>
+                                </div>
                             </div>
                             <p v-if="uploadRecognizeContent"
                                 class="mt-1 text-xs leading-5 text-gray-600 break-words whitespace-pre-wrap">
@@ -756,6 +763,34 @@ const onFileChange = (e: Event) => {
     uploadPreview.value = URL.createObjectURL(file)
     uploadPunchDone.value = false
     void prepareUploadAndRecognize(file)
+}
+
+const handleRetryRecognize = async () => {
+    if (isUploadPreparing.value) return
+
+    // 优先使用已上传图片地址重试，避免重复上传
+    if (uploadPicurl.value) {
+        isUploadPreparing.value = true
+        uploadRecognizeContent.value = ''
+        uploadRecognizeInfo.value = null
+        try {
+            await callImageRecognize(uploadPicurl.value)
+        } catch {
+            uploadRecognizeContent.value = ''
+            uploadRecognizeInfo.value = null
+            ElMessage({ message: '重新识别失败，请重试', type: 'error', duration: 2000 })
+        } finally {
+            isUploadPreparing.value = false
+        }
+        return
+    }
+
+    if (uploadFile.value) {
+        await prepareUploadAndRecognize(uploadFile.value)
+        return
+    }
+
+    ElMessage({ message: '请先选择照片', type: 'warning', duration: 1800 })
 }
 
 

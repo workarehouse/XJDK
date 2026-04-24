@@ -15,7 +15,7 @@
             </div>
 
             <!-- 星期头 + 月历格子（带滑动过渡，可折叠） -->
-            <div class="overflow-hidden transition-all duration-300 ease-in-out"
+            <div class="overflow-hidden transition-all duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
                 :style="calendarCollapsed ? 'max-height:0;opacity:0;margin-top:0' : 'max-height:400px;opacity:1'">
                 <div class="relative overflow-hidden">
                     <Transition :name="slideDirection === 'next' ? 'slide-left' : 'slide-right'">
@@ -53,7 +53,8 @@
 
         <!-- 内容区 -->
         <div ref="contentRef" class="flex-1 min-h-0 overflow-y-auto px-4 py-3 flex flex-col gap-3"
-            @scroll="onContentScroll">
+            @scroll="onContentScroll" @touchstart="onContentTouchStart" @touchmove="onContentTouchMove"
+            @touchend="onContentTouchEnd" @touchcancel="onContentTouchEnd">
 
             <!-- 导出报表 -->
             <!-- <div class="bg-white rounded-xl px-4 py-3.5 flex items-center justify-between shadow-sm">
@@ -95,6 +96,10 @@
                                 <p v-if="record.addr" class="text-xs text-gray-500 mt-0.5 break-all">
                                     {{ record.addr }}
                                 </p>
+                                <div v-else-if="record.lat || record.lng" class="mt-0.5 text-xs text-gray-500">
+                                    <p>经度：{{ formatGeoValue(record.lng) }}</p>
+                                    <p class="mt-0.5">纬度：{{ formatGeoValue(record.lat) }}</p>
+                                </div>
                                 <p class="text-xs text-gray-400 mt-0.5">
                                     {{ record.clksty === '2' ? '照片上传' : '现场拍照' }}
                                 </p>
@@ -136,7 +141,6 @@ import {
     ChevronRightIcon,
     MapPinIcon,
     PieChartIcon,
-    TableIcon,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -181,26 +185,88 @@ useSwipe(calendarRef, {
 const calendarCollapsed = ref(false)
 const contentRef = ref<HTMLElement | null>(null)
 let lastScrollTop = 0
+let lastToggleAt = 0
+let touchStartY = 0
+let touchMoved = false
+
+const SCROLL_DELTA_THRESHOLD = 4
+const COLLAPSE_TRIGGER_TOP = 18
+const EXPAND_TRIGGER_TOP = 2
+const TOGGLE_COOLDOWN_MS = 240
 
 const onContentScroll = () => {
     const el = contentRef.value
     if (!el) return
-    const st = el.scrollTop
-    if (st > lastScrollTop && st > 8) {
-        // 向上滚动：收起日历
-        calendarCollapsed.value = true
-    } else if (st < 8) {
-        // 回到顶部：展开日历
-        calendarCollapsed.value = false
+    // iOS 回弹时可能出现极小抖动，先做下限保护并忽略微小位移
+    const st = Math.max(0, el.scrollTop)
+    const delta = st - lastScrollTop
+    const now = Date.now()
+    const inCooldown = now - lastToggleAt < TOGGLE_COOLDOWN_MS
+
+    if (Math.abs(delta) < SCROLL_DELTA_THRESHOLD) {
+        lastScrollTop = st
+        return
     }
+
+    if (!inCooldown && !calendarCollapsed.value && delta > 0 && st > COLLAPSE_TRIGGER_TOP) {
+        // 向下浏览内容：收起日历
+        calendarCollapsed.value = true
+        lastToggleAt = now
+    } else if (!inCooldown && calendarCollapsed.value && delta < 0 && st <= EXPAND_TRIGGER_TOP) {
+        // 明确回到顶部附近再展开，避免弹簧效果来回触发
+        calendarCollapsed.value = false
+        lastToggleAt = now
+    }
+
     lastScrollTop = st
+}
+
+const onContentTouchStart = (event: TouchEvent) => {
+    touchStartY = event.touches[0]?.clientY ?? 0
+    touchMoved = false
+}
+
+const onContentTouchMove = (event: TouchEvent) => {
+    const el = contentRef.value
+    if (!el || !calendarCollapsed.value) return
+
+    const currentY = event.touches[0]?.clientY ?? 0
+    const deltaY = currentY - touchStartY
+
+    if (deltaY > 6) {
+        touchMoved = true
+    }
+
+    if (el.scrollTop <= 0 && deltaY > 28 && Date.now() - lastToggleAt >= TOGGLE_COOLDOWN_MS) {
+        // 折叠状态下，在顶部明显下拉时展开日历
+        calendarCollapsed.value = false
+        lastToggleAt = Date.now()
+        lastScrollTop = 0
+        touchStartY = currentY
+        touchMoved = false
+    }
+}
+
+const onContentTouchEnd = () => {
+    if (!touchMoved) {
+        touchStartY = 0
+        return
+    }
+    touchStartY = 0
+    touchMoved = false
 }
 
 type PunchRecord = {
     addr?: string
     area?: string
+    lat?: string | number
+    lng?: string | number
     clktim?: string
     clksty?: string
+}
+
+const formatGeoValue = (value?: string | number) => {
+    return value == null || value === '' ? '-' : String(value)
 }
 
 const punchRecords = ref<PunchRecord[]>([])
@@ -272,11 +338,11 @@ button {
 
 /* 向左滑（下一月） */
 .slide-left-enter-active {
-    transition: transform 0.28s ease, opacity 0.28s ease;
+    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .slide-left-leave-active {
-    transition: transform 0.28s ease, opacity 0.28s ease;
+    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s cubic-bezier(0.22, 1, 0.36, 1);
     position: absolute;
     top: 0;
     left: 0;
@@ -295,11 +361,11 @@ button {
 
 /* 向右滑（上一月） */
 .slide-right-enter-active {
-    transition: transform 0.28s ease, opacity 0.28s ease;
+    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .slide-right-leave-active {
-    transition: transform 0.28s ease, opacity 0.28s ease;
+    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s cubic-bezier(0.22, 1, 0.36, 1);
     position: absolute;
     top: 0;
     left: 0;
