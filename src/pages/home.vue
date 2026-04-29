@@ -722,7 +722,7 @@ const extractRecognizeContent = (payload: any): string => {
 }
 
 const callImageRecognize = async (imageUrl: string) => {
-    const response = await http.get('https://devenv.luoniushan.com/lxmpapi/lxmp/chat', {
+    const response = await http.get('https://aimaster.luoniushan.com/lxmpapi/lxmp/chat', {
         params: {
             apikey: 'dQ4ZldbmhNlmVqlBq9ivoyi34hf5sgT2IOEZMw7Igxql8iTCsGAsyk8ZoI8lUO3riYi80ckRvLZ4lQDid',
             imageUrl,

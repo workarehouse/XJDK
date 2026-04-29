@@ -145,13 +145,6 @@ import {
 
 const router = useRouter()
 
-// ——— 顶部统计切换 ———
-const statTabs = [
-    { key: 'team', label: '团队统计' },
-    { key: 'mine', label: '我的统计' },
-]
-const statTab = ref('mine')
-
 // ——— 日期 ———
 const today = dayjs()
 const selectedDate = ref(today.format('YYYY-MM-DD'))
